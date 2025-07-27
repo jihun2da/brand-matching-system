@@ -26,7 +26,7 @@ class BrandMatchingSystem:
         """키워드 리스트 로드 (엑셀 파일 또는 기본 키워드)"""
         try:
             # 키워드 엑셀 파일 경로
-            keyword_file = "키워드.xlsx"  # 또는 "상품명바꾸기키워드.xlsx"
+            keyword_file = "keywords.xlsx"
             
             if os.path.exists(keyword_file):
                 # 엑셀 파일에서 키워드 로드
