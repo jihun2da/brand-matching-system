@@ -233,7 +233,7 @@ def process_matching(uploaded_files, matching_system, file_processor):
                 os.remove(temp_file)
 
 def show_results(result_df):
-    """결과 표시"""
+    """결과 표시 - KeyError 방지를 위한 안전한 처리"""
     try:
         # 완료 메시지
         st.markdown("""
@@ -247,93 +247,94 @@ def show_results(result_df):
         st.markdown("### 📊 매칭 결과 통계")
         col1, col2, col3, col4 = st.columns(4)
         
-        # 매칭 성공/실패는 O열(도매가격)으로 판단
+        # 매칭 성공/실패는 O열(도매가격)으로 판단 (안전한 컬럼 체크)
         if 'O열(도매가격)' in result_df.columns:
-            matched_count = len(result_df[result_df['O열(도매가격)'] > 0])
-            unmatched_count = len(result_df[result_df['O열(도매가격)'] == 0])
+            # 도매가격이 0보다 크면 매칭 성공
+            matched_count = len(result_df[pd.to_numeric(result_df['O열(도매가격)'], errors='coerce') > 0])
+            unmatched_count = len(result_df[pd.to_numeric(result_df['O열(도매가격)'], errors='coerce') == 0])
         else:
             # 컬럼이 없으면 기본값 사용
             matched_count = 0
             unmatched_count = len(result_df)
-    
-    with col1:
-        st.metric("📦 총 상품 수", f"{len(result_df):,}개")
-    
-    with col2:
-        st.metric("✅ 매칭 성공", f"{matched_count:,}개", 
-                 delta=f"{matched_count}개 매칭")
-    
-    with col3:
-        st.metric("❌ 매칭 실패", f"{unmatched_count:,}개")
-    
-    with col4:
-        if len(result_df) > 0:
-            success_rate = (matched_count / len(result_df)) * 100
-            st.metric("📈 성공률", f"{success_rate:.1f}%",
-                     delta=f"{success_rate:.1f}%" if success_rate >= 80 else None)
-    
-    # 결과 미리보기
-    st.markdown("---")
-    st.markdown("### 📋 결과 미리보기 (상위 10개)")
-    
-    # 매칭 성공/실패별 필터
-    tab1, tab2, tab3 = st.tabs(["🔍 전체", "✅ 매칭 성공", "❌ 매칭 실패"])
-    
-    with tab1:
-        st.dataframe(result_df.head(10), use_container_width=True)
-    
-    with tab2:
-        if 'O열(도매가격)' in result_df.columns:
-            success_df = result_df[result_df['O열(도매가격)'] > 0]
-            if len(success_df) > 0:
-                st.dataframe(success_df.head(10), use_container_width=True)
-            else:
-                st.info("매칭 성공한 항목이 없습니다.")
-        else:
-            st.info("매칭 결과 컬럼을 찾을 수 없습니다.")
-    
-    with tab3:
-        if 'O열(도매가격)' in result_df.columns:
-            fail_df = result_df[result_df['O열(도매가격)'] == 0]
-            if len(fail_df) > 0:
-                st.dataframe(fail_df.head(10), use_container_width=True)
-            else:
-                st.info("매칭 실패한 항목이 없습니다.")
-        else:
-            st.info("매칭 결과 컬럼을 찾을 수 없습니다.")
-    
-    # 다운로드 섹션
-    st.markdown("---")
-    st.markdown("### 💾 결과 다운로드")
-    
-    col1, col2 = st.columns([3, 1])
-    
-    with col1:
-        st.markdown("""
-        <div class="info-box">
-            <strong>📁 Excel 파일로 저장</strong><br>
-            매칭 결과를 Excel 파일로 다운로드할 수 있습니다.<br>
-            파일명에는 현재 날짜와 시간이 포함됩니다.
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        # Excel 파일 생성
-        excel_buffer = io.BytesIO()
-        result_df.to_excel(excel_buffer, index=False, engine='openpyxl')
-        excel_buffer.seek(0)
         
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"브랜드매칭결과_{timestamp}.xlsx"
+        with col1:
+            st.metric("📦 총 상품 수", f"{len(result_df):,}개")
         
-        st.download_button(
-            label="📥 Excel 다운로드",
-            data=excel_buffer.getvalue(),
-            file_name=filename,
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            type="primary",
-            use_container_width=True
-        )
+        with col2:
+            st.metric("✅ 매칭 성공", f"{matched_count:,}개", 
+                     delta=f"{matched_count}개 매칭")
+        
+        with col3:
+            st.metric("❌ 매칭 실패", f"{unmatched_count:,}개")
+        
+        with col4:
+            if len(result_df) > 0:
+                success_rate = (matched_count / len(result_df)) * 100
+                st.metric("📈 성공률", f"{success_rate:.1f}%",
+                         delta=f"{success_rate:.1f}%" if success_rate >= 80 else None)
+        
+        # 결과 미리보기
+        st.markdown("---")
+        st.markdown("### 📋 결과 미리보기 (상위 10개)")
+        
+        # 매칭 성공/실패별 필터
+        tab1, tab2, tab3 = st.tabs(["🔍 전체", "✅ 매칭 성공", "❌ 매칭 실패"])
+        
+        with tab1:
+            st.dataframe(result_df.head(10), use_container_width=True)
+        
+        with tab2:
+            if 'O열(도매가격)' in result_df.columns:
+                success_df = result_df[pd.to_numeric(result_df['O열(도매가격)'], errors='coerce') > 0]
+                if len(success_df) > 0:
+                    st.dataframe(success_df.head(10), use_container_width=True)
+                else:
+                    st.info("매칭 성공한 항목이 없습니다.")
+            else:
+                st.info("매칭 결과 컬럼을 찾을 수 없습니다.")
+        
+        with tab3:
+            if 'O열(도매가격)' in result_df.columns:
+                fail_df = result_df[pd.to_numeric(result_df['O열(도매가격)'], errors='coerce') == 0]
+                if len(fail_df) > 0:
+                    st.dataframe(fail_df.head(10), use_container_width=True)
+                else:
+                    st.info("매칭 실패한 항목이 없습니다.")
+            else:
+                st.info("매칭 결과 컬럼을 찾을 수 없습니다.")
+        
+        # 다운로드 섹션
+        st.markdown("---")
+        st.markdown("### 💾 결과 다운로드")
+        
+        col1, col2 = st.columns([3, 1])
+        
+        with col1:
+            st.markdown("""
+            <div class="info-box">
+                <strong>📁 Excel 파일로 저장</strong><br>
+                매칭 결과를 Excel 파일로 다운로드할 수 있습니다.<br>
+                파일명에는 현재 날짜와 시간이 포함됩니다.
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col2:
+            # Excel 파일 생성
+            excel_buffer = io.BytesIO()
+            result_df.to_excel(excel_buffer, index=False, engine='openpyxl')
+            excel_buffer.seek(0)
+            
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"브랜드매칭결과_{timestamp}.xlsx"
+            
+            st.download_button(
+                label="📥 Excel 다운로드",
+                data=excel_buffer.getvalue(),
+                file_name=filename,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                type="primary",
+                use_container_width=True
+            )
     
     except Exception as e:
         st.error(f"❌ 결과 표시 중 오류 발생: {str(e)}")
@@ -341,6 +342,24 @@ def show_results(result_df):
         
         # 기본 정보라도 표시
         st.info(f"📊 총 {len(result_df)}개 행이 처리되었습니다.")
+        
+        # 기본 다운로드 기능 제공
+        try:
+            excel_buffer = io.BytesIO()
+            result_df.to_excel(excel_buffer, index=False, engine='openpyxl')
+            excel_buffer.seek(0)
+            
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"브랜드매칭결과_{timestamp}.xlsx"
+            
+            st.download_button(
+                label="📥 기본 Excel 다운로드",
+                data=excel_buffer.getvalue(),
+                file_name=filename,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+        except:
+            st.error("다운로드 기능도 사용할 수 없습니다.")
         
         # 데이터 확인용
         if not result_df.empty:
