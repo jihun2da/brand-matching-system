@@ -2,6 +2,10 @@ import streamlit as st
 import pandas as pd
 import os
 from datetime import datetime
+import sys
+import os
+sys.path.append(os.path.dirname(__file__))
+
 from brand_matching_system import BrandMatchingSystem
 from file_processor import BrandFileProcessor
 import io
@@ -21,12 +25,27 @@ st.markdown("---")
 @st.cache_resource
 def init_system():
     """시스템 초기화 (캐시됨)"""
-    matching_system = BrandMatchingSystem()
-    file_processor = BrandFileProcessor()
-    return matching_system, file_processor
+    try:
+        matching_system = BrandMatchingSystem()
+        file_processor = BrandFileProcessor()
+        return matching_system, file_processor
+    except Exception as e:
+        st.error(f"시스템 초기화 중 오류 발생: {str(e)}")
+        st.info("기본 모드로 실행합니다.")
+        return None, None
 
 def main():
     matching_system, file_processor = init_system()
+    
+    if matching_system is None or file_processor is None:
+        st.error("🚨 시스템을 초기화할 수 없습니다.")
+        st.markdown("""
+        ### 💡 **해결 방법**
+        1. 페이지를 새로고침해 보세요
+        2. 몇 분 후 다시 시도해 보세요
+        3. 문제가 지속되면 관리자에게 문의하세요
+        """)
+        return
     
     # 사이드바
     st.sidebar.title("📋 메뉴")
