@@ -1,0 +1,7 @@
+Flask==2.3.3
+pandas==2.1.1
+openpyxl==3.1.2
+Werkzeug==2.3.7
+requests==2.31.0
+gspread==5.10.0
+oauth2client==4.1.3 

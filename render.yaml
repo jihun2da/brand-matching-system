@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: brand-matching-system
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python brand_matching_web.py
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: FLASK_ENV
+        value: production 
