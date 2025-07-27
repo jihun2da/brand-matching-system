@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "brand_matching_web.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "brand_matching_web.py"
+    }
+  ],
+  "env": {
+    "PYTHONPATH": ".",
+    "FLASK_ENV": "production"
+  }
+} 

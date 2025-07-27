@@ -251,6 +251,9 @@ def handle_exception(e):
     logger.error(f"예상치 못한 오류: {e}")
     return jsonify({'success': False, 'message': '서버 내부 오류가 발생했습니다.'}), 500
 
+# Vercel을 위한 앱 객체 노출
+application = app
+
 if __name__ == '__main__':
     logger.info("브랜드 매칭 웹 애플리케이션 시작")
     
