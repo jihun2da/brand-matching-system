@@ -234,21 +234,27 @@ def process_matching(uploaded_files, matching_system, file_processor):
 
 def show_results(result_df):
     """결과 표시"""
-    
-    # 완료 메시지
-    st.markdown("""
-    <div class="success-box">
-        <h3>🎉 매칭이 완료되었습니다!</h3>
-        <p>결과를 확인하고 Excel 파일을 다운로드하세요.</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # 통계 정보
-    st.markdown("### 📊 매칭 결과 통계")
-    col1, col2, col3, col4 = st.columns(4)
-    
-    matched_count = len(result_df[result_df['매칭여부'] == 'Y'])
-    unmatched_count = len(result_df[result_df['매칭여부'] == 'N'])
+    try:
+        # 완료 메시지
+        st.markdown("""
+        <div class="success-box">
+            <h3>🎉 매칭이 완료되었습니다!</h3>
+            <p>결과를 확인하고 Excel 파일을 다운로드하세요.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # 통계 정보
+        st.markdown("### 📊 매칭 결과 통계")
+        col1, col2, col3, col4 = st.columns(4)
+        
+        # 매칭 성공/실패는 O열(도매가격)으로 판단
+        if 'O열(도매가격)' in result_df.columns:
+            matched_count = len(result_df[result_df['O열(도매가격)'] > 0])
+            unmatched_count = len(result_df[result_df['O열(도매가격)'] == 0])
+        else:
+            # 컬럼이 없으면 기본값 사용
+            matched_count = 0
+            unmatched_count = len(result_df)
     
     with col1:
         st.metric("📦 총 상품 수", f"{len(result_df):,}개")
@@ -277,18 +283,24 @@ def show_results(result_df):
         st.dataframe(result_df.head(10), use_container_width=True)
     
     with tab2:
-        success_df = result_df[result_df['매칭여부'] == 'Y']
-        if len(success_df) > 0:
-            st.dataframe(success_df.head(10), use_container_width=True)
+        if 'O열(도매가격)' in result_df.columns:
+            success_df = result_df[result_df['O열(도매가격)'] > 0]
+            if len(success_df) > 0:
+                st.dataframe(success_df.head(10), use_container_width=True)
+            else:
+                st.info("매칭 성공한 항목이 없습니다.")
         else:
-            st.info("매칭 성공한 항목이 없습니다.")
+            st.info("매칭 결과 컬럼을 찾을 수 없습니다.")
     
     with tab3:
-        fail_df = result_df[result_df['매칭여부'] == 'N']
-        if len(fail_df) > 0:
-            st.dataframe(fail_df.head(10), use_container_width=True)
+        if 'O열(도매가격)' in result_df.columns:
+            fail_df = result_df[result_df['O열(도매가격)'] == 0]
+            if len(fail_df) > 0:
+                st.dataframe(fail_df.head(10), use_container_width=True)
+            else:
+                st.info("매칭 실패한 항목이 없습니다.")
         else:
-            st.info("매칭 실패한 항목이 없습니다.")
+            st.info("매칭 결과 컬럼을 찾을 수 없습니다.")
     
     # 다운로드 섹션
     st.markdown("---")
@@ -322,6 +334,18 @@ def show_results(result_df):
             type="primary",
             use_container_width=True
         )
+    
+    except Exception as e:
+        st.error(f"❌ 결과 표시 중 오류 발생: {str(e)}")
+        st.error(f"🔍 상세 오류: {type(e).__name__}")
+        
+        # 기본 정보라도 표시
+        st.info(f"📊 총 {len(result_df)}개 행이 처리되었습니다.")
+        
+        # 데이터 확인용
+        if not result_df.empty:
+            st.markdown("### 📋 원본 데이터 (상위 5개)")
+            st.dataframe(result_df.head(5), use_container_width=True)
 
 def show_info_page(matching_system):
     """시스템 정보 페이지"""
