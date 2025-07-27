@@ -140,7 +140,7 @@ def show_matching_page(matching_system, file_processor):
         st.markdown("### 📊 시스템 현황")
         
         # 브랜드 데이터 정보
-        if hasattr(matching_system, 'brand_data') and matching_system.brand_data:
+        if hasattr(matching_system, 'brand_data') and len(matching_system.brand_data) > 0:
             st.metric("🏷️ 브랜드 상품", f"{len(matching_system.brand_data):,}개")
         
         # 키워드 정보
@@ -331,13 +331,13 @@ def show_info_page(matching_system):
     
     with col1:
         st.subheader("📊 브랜드 데이터")
-        if hasattr(matching_system, 'brand_data') and matching_system.brand_data:
+        if hasattr(matching_system, 'brand_data') and len(matching_system.brand_data) > 0:
             st.metric("브랜드 상품 수", len(matching_system.brand_data))
             
             # 브랜드별 통계
-            if matching_system.brand_data:
+            if len(matching_system.brand_data) > 0:
                 brands = {}
-                for item in matching_system.brand_data:
+                for _, item in matching_system.brand_data.iterrows():
                     brand = item.get('브랜드', 'Unknown')
                     brands[brand] = brands.get(brand, 0) + 1
                 
