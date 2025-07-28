@@ -83,11 +83,13 @@ def main():
     st.sidebar.title("📋 메뉴")
     menu = st.sidebar.selectbox(
         "작업 선택",
-        ["매칭 처리", "시스템 정보", "사용법"]
+        ["매칭 처리", "키워드 관리", "시스템 정보", "사용법"]
     )
     
     if menu == "매칭 처리":
         show_matching_page(matching_system, file_processor)
+    elif menu == "키워드 관리":
+        show_keyword_management_page(matching_system)
     elif menu == "시스템 정보":
         show_info_page(matching_system)
     else:
@@ -402,6 +404,123 @@ def show_info_page(matching_system):
                 keywords_text += f" ... (총 {len(matching_system.keyword_list)}개)"
             st.text_area("키워드 목록 (상위 20개)", keywords_text, height=100)
 
+def show_keyword_management_page(matching_system):
+    """키워드 관리 페이지"""
+    st.header("🔧 키워드 관리")
+    
+    if matching_system is None:
+        st.error("시스템이 초기화되지 않았습니다.")
+        return
+    
+    # 키워드 추가 섹션
+    st.markdown("### ➕ 키워드 추가")
+    col1, col2 = st.columns([3, 1])
+    
+    with col1:
+        new_keyword = st.text_input("새 키워드 입력", placeholder="제거할 키워드를 입력하세요")
+    
+    with col2:
+        if st.button("➕ 추가", type="primary", use_container_width=True):
+            if new_keyword.strip():
+                if matching_system.add_keyword(new_keyword.strip()):
+                    st.success(f"키워드 '{new_keyword.strip()}'가 추가되었습니다!")
+                    st.rerun()
+                else:
+                    st.warning("키워드 추가에 실패했거나 이미 존재하는 키워드입니다.")
+            else:
+                st.warning("키워드를 입력해주세요.")
+    
+    # 현재 키워드 목록
+    st.markdown("---")
+    st.markdown("### 📋 현재 키워드 목록")
+    st.markdown(f"**총 {len(matching_system.keyword_list)}개의 키워드**")
+    
+    if matching_system.keyword_list:
+        # 검색 기능
+        search_term = st.text_input("🔍 키워드 검색", placeholder="키워드를 검색하세요")
+        
+        # 필터링된 키워드 목록
+        if search_term:
+            filtered_keywords = [kw for kw in matching_system.keyword_list if search_term.lower() in kw.lower()]
+        else:
+            filtered_keywords = matching_system.keyword_list
+        
+        st.markdown(f"**검색 결과: {len(filtered_keywords)}개**")
+        
+        # 키워드 목록을 여러 컬럼으로 표시
+        if filtered_keywords:
+            # 페이지네이션
+            keywords_per_page = 50
+            total_pages = (len(filtered_keywords) - 1) // keywords_per_page + 1
+            
+            if total_pages > 1:
+                page = st.selectbox("페이지 선택", range(1, total_pages + 1)) - 1
+            else:
+                page = 0
+            
+            start_idx = page * keywords_per_page
+            end_idx = min(start_idx + keywords_per_page, len(filtered_keywords))
+            page_keywords = filtered_keywords[start_idx:end_idx]
+            
+            # 키워드를 4개 컬럼으로 표시
+            cols = st.columns(4)
+            for i, keyword in enumerate(page_keywords):
+                col_idx = i % 4
+                with cols[col_idx]:
+                    # 각 키워드를 버튼으로 표시하고 클릭하면 삭제
+                    if st.button(f"❌ {keyword}", key=f"delete_{keyword}_{i}", 
+                                help=f"'{keyword}' 키워드 삭제", use_container_width=True):
+                        if matching_system.remove_keyword(keyword):
+                            st.success(f"키워드 '{keyword}'가 삭제되었습니다!")
+                            st.rerun()
+                        else:
+                            st.error("키워드 삭제에 실패했습니다.")
+            
+            # 페이지 정보
+            if total_pages > 1:
+                st.markdown(f"**페이지 {page + 1} / {total_pages}** (전체 {len(filtered_keywords)}개 중 {start_idx + 1}-{end_idx}번째)")
+        else:
+            st.info("검색 조건에 맞는 키워드가 없습니다.")
+    else:
+        st.info("등록된 키워드가 없습니다.")
+    
+    # 키워드 파일 관리
+    st.markdown("---")
+    st.markdown("### 📁 키워드 파일 관리")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("**현재 키워드를 파일로 저장**")
+        if st.button("💾 키워드 저장", use_container_width=True):
+            if matching_system.save_keywords():
+                st.success("키워드가 keywords.xlsx 파일로 저장되었습니다!")
+            else:
+                st.error("키워드 저장에 실패했습니다.")
+    
+    with col2:
+        st.markdown("**키워드 파일에서 다시 로드**")
+        if st.button("🔄 키워드 다시 로드", use_container_width=True):
+            matching_system.load_keywords()
+            st.success("키워드를 다시 로드했습니다!")
+            st.rerun()
+    
+    # 도움말
+    st.markdown("---")
+    st.markdown("### ℹ️ 도움말")
+    st.markdown("""
+    **키워드 관리 방법:**
+    - **추가**: 상단의 입력창에 키워드를 입력하고 '추가' 버튼을 클릭
+    - **삭제**: 키워드 목록에서 해당 키워드의 '❌' 버튼을 클릭
+    - **검색**: 키워드가 많을 때 검색창을 이용해 원하는 키워드를 찾기
+    - **저장**: 변경사항은 자동으로 keywords.xlsx 파일에 저장됨
+    
+    **키워드 역할:**
+    - 상품명에서 불필요한 텍스트를 제거하여 매칭 정확도 향상
+    - 괄호와 함께 `(키워드)` 형태로 제거됨
+    - 예: `튜브탑(JS-JL)` → `튜브탑` (JS-JL이 키워드인 경우)
+    """)
+
 def show_usage_page():
     """사용법 페이지"""
     st.header("📖 사용법")
@@ -426,6 +545,12 @@ def show_usage_page():
     - **상품명** 유사도 검사 (키워드 제외 후)
     - **사이즈/컬러** 옵션 매칭
     - **우선순위** 기반 최적 매칭
+    
+    ### 🔧 **키워드 관리**
+    
+    - **키워드 추가/삭제**: 사이드바의 '키워드 관리'에서 수정 가능
+    - **자동 제거**: 상품명에서 키워드가 괄호와 함께 자동 제거
+    - **실시간 적용**: 키워드 변경 시 즉시 매칭에 반영
     
     ### ⚠️ **주의사항**
     

@@ -55,23 +55,70 @@ class BrandMatchingSystem:
             logger.error(f"키워드 로드 실패: {e}")
             self.keyword_list = []
 
+    def save_keywords(self):
+        """현재 키워드 리스트를 엑셀 파일로 저장"""
+        try:
+            keyword_file = "keywords.xlsx"
+            df = pd.DataFrame({'키워드': self.keyword_list})
+            df.to_excel(keyword_file, index=False)
+            logger.info(f"키워드 파일 저장 완료: {len(self.keyword_list)}개 키워드")
+            return True
+        except Exception as e:
+            logger.error(f"키워드 파일 저장 실패: {e}")
+            return False
+
+    def add_keyword(self, keyword: str) -> bool:
+        """키워드 추가"""
+        keyword = keyword.strip()
+        if keyword and keyword not in self.keyword_list:
+            self.keyword_list.append(keyword)
+            return self.save_keywords()
+        return False
+
+    def remove_keyword(self, keyword: str) -> bool:
+        """키워드 제거"""
+        if keyword in self.keyword_list:
+            self.keyword_list.remove(keyword)
+            return self.save_keywords()
+        return False
+
+    def extract_third_word_from_address(self, address: str) -> str:
+        """주소에서 3번째 단어 추출 (띄어쓰기 기준)"""
+        if not address or pd.isna(address):
+            return ""
+        
+        address = str(address).strip()
+        words = address.split()
+        
+        # 3번째 단어가 있으면 반환, 없으면 빈 문자열
+        if len(words) >= 3:
+            return words[2]
+        return ""
+
     def normalize_product_name(self, product_name: str) -> str:
-        """상품명에서 키워드 제거"""
+        """상품명에서 키워드 제거 (괄호와 함께 완전 삭제)"""
         if not product_name or pd.isna(product_name):
             return ""
         
         original = str(product_name).strip()
         normalized = original
         
-        # 키워드 제거
+        # 키워드와 괄호를 함께 제거
         for keyword in self.keyword_list:
             if keyword:
-                # 단어 경계를 고려한 제거 (전체 단어만 매칭)
+                # 괄호와 함께 키워드 제거: (키워드) 형태
+                pattern = r'\(' + re.escape(keyword) + r'\)'
+                normalized = re.sub(pattern, '', normalized, flags=re.IGNORECASE)
+                
+                # 단독 키워드도 제거 (기존 로직 유지)
                 pattern = r'\b' + re.escape(keyword) + r'\b'
                 normalized = re.sub(pattern, '', normalized, flags=re.IGNORECASE)
         
-        # 연속된 공백 제거
-        normalized = re.sub(r'\s+', ' ', normalized).strip()
+        # 연속된 공백과 쉼표 정리
+        normalized = re.sub(r'\s*,\s*', ',', normalized)  # 쉼표 주변 공백 제거
+        normalized = re.sub(r',+', ',', normalized)  # 연속된 쉼표 제거
+        normalized = re.sub(r'\s+', ' ', normalized)  # 연속된 공백 제거
+        normalized = normalized.strip(',').strip()  # 앞뒤 쉼표와 공백 제거
         
         # 특수문자만 남은 경우나 너무 짧은 경우 원본 반환
         if len(normalized) < 2 or not re.search(r'[가-힣a-zA-Z0-9]', normalized):
@@ -195,7 +242,7 @@ class BrandMatchingSystem:
             self.brand_data = pd.DataFrame()
 
     def parse_options(self, option_text: str) -> tuple:
-        """옵션 텍스트에서 색상과 사이즈 추출"""
+        """옵션 텍스트에서 색상과 사이즈 추출 (기호 제거 개선)"""
         if not option_text or pd.isna(option_text) or str(option_text).strip().lower() == 'nan':
             return "", ""
         
@@ -207,11 +254,17 @@ class BrandMatchingSystem:
         color_match = re.search(r'색상\s*:\s*([^,]+?)(?:\s*,|\s*사이즈:|$)', option_text, re.IGNORECASE)
         if color_match:
             color = color_match.group(1).strip()
+            # 색상에서 불필요한 기호와 공백 제거
+            color = re.sub(r'\s*[/\\|]+\s*$', '', color)  # 끝의 /, \, | 기호와 공백 제거
+            color = color.strip()
         
         # 사이즈 추출 - '사이즈:' 다음부터 콤마 또는 문자열 끝까지
         size_match = re.search(r'사이즈\s*:\s*(.+?)(?:\s*,|$)', option_text, re.IGNORECASE)
         if size_match:
             size = size_match.group(1).strip()
+            # 사이즈에서 불필요한 기호와 공백 제거
+            size = re.sub(r'\s*[/\\|]+\s*$', '', size)  # 끝의 /, \, | 기호와 공백 제거
+            size = size.strip()
         
         return color, size
 
@@ -252,16 +305,40 @@ class BrandMatchingSystem:
             if len(sheet1_df.columns) >= 3:  # 업로드 C열 → Sheet2 F열 (주문자명)
                 sheet2_row['F열(주문자명)'] = str(row.iloc[2]) if pd.notna(row.iloc[2]) else ""
             
-            if len(sheet1_df.columns) >= 4:  # 업로드 D열 → Sheet2 G열 (위탁자명)
-                sheet2_row['G열(위탁자명)'] = str(row.iloc[3]) if pd.notna(row.iloc[3]) else ""
+            # 업로드 D열 → Sheet2 G열 (위탁자명) + 주소 3번째 단어 추가
+            if len(sheet1_df.columns) >= 4:
+                name = str(row.iloc[3]) if pd.notna(row.iloc[3]) else ""
+                # 주소에서 3번째 단어 추출 (K열이 주소)
+                address_third_word = ""
+                if len(sheet1_df.columns) >= 11:  # K열(주소)이 있으면
+                    address = str(row.iloc[10]) if pd.notna(row.iloc[10]) else ""
+                    address_third_word = self.extract_third_word_from_address(address)
+                
+                if name and address_third_word:
+                    sheet2_row['G열(위탁자명)'] = f"{name}({address_third_word})"
+                else:
+                    sheet2_row['G열(위탁자명)'] = name
             
-            # 업로드 E열 → 브랜드/상품명 분할
+            # 업로드 E열 → 브랜드/상품명 분할 (상품명에 키워드 제거 적용)
             if len(sheet1_df.columns) >= 5:
                 e_value = str(row.iloc[4]) if pd.notna(row.iloc[4]) else ""
                 if e_value and ' ' in e_value:
                     parts = e_value.split(' ', 1)  # 첫 번째 띄어쓰기로만 분할
                     sheet2_row['H열(브랜드)'] = parts[0].strip()
-                    sheet2_row['I열(상품명)'] = parts[1].strip()
+                    # 상품명에 키워드 제거 적용
+                    raw_product_name = parts[1].strip()
+                    cleaned_product_name = self.normalize_product_name(raw_product_name)
+                    # 정규화된 결과가 너무 짧으면 원본 사용 (단, 키워드 괄호는 제거)
+                    if len(cleaned_product_name) < 2:
+                        # 원본에서 괄호만 제거
+                        cleaned_product_name = raw_product_name
+                        for keyword in self.keyword_list:
+                            if keyword:
+                                pattern = r'\(' + re.escape(keyword) + r'\)'
+                                cleaned_product_name = re.sub(pattern, '', cleaned_product_name, flags=re.IGNORECASE)
+                        cleaned_product_name = re.sub(r'\s+', ' ', cleaned_product_name).strip()
+                    
+                    sheet2_row['I열(상품명)'] = cleaned_product_name
                 else:
                     sheet2_row['H열(브랜드)'] = e_value.strip()
                     sheet2_row['I열(상품명)'] = ""
@@ -277,8 +354,23 @@ class BrandMatchingSystem:
                 except:
                     sheet2_row['L열(수량)'] = 1
             
-            if len(sheet1_df.columns) >= 9:  # 업로드 I열 → Sheet2 R열 (이름)
-                sheet2_row['R열(이름)'] = str(row.iloc[8]) if pd.notna(row.iloc[8]) else ""
+            # 업로드 H열 → Sheet2 M열 (옵션가) - 새로 추가
+            if len(sheet1_df.columns) >= 8:
+                sheet2_row['M열(옵션가)'] = str(row.iloc[7]) if pd.notna(row.iloc[7]) else ""
+            
+            # 업로드 I열 → Sheet2 R열 (이름) + 주소 3번째 단어 추가
+            if len(sheet1_df.columns) >= 9:
+                name = str(row.iloc[8]) if pd.notna(row.iloc[8]) else ""
+                # 주소에서 3번째 단어 추출 (K열이 주소)
+                address_third_word = ""
+                if len(sheet1_df.columns) >= 11:  # K열(주소)이 있으면
+                    address = str(row.iloc[10]) if pd.notna(row.iloc[10]) else ""
+                    address_third_word = self.extract_third_word_from_address(address)
+                
+                if name and address_third_word:
+                    sheet2_row['R열(이름)'] = f"{name}({address_third_word})"
+                else:
+                    sheet2_row['R열(이름)'] = name
             
             if len(sheet1_df.columns) >= 10:  # 업로드 J열 → Sheet2 S열 (전화번호)
                 sheet2_row['S열(전화번호)'] = str(row.iloc[9]) if pd.notna(row.iloc[9]) else ""
