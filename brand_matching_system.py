@@ -322,25 +322,64 @@ class BrandMatchingSystem:
             # 업로드 E열 → 브랜드/상품명 분할 (상품명에 키워드 제거 적용)
             if len(sheet1_df.columns) >= 5:
                 e_value = str(row.iloc[4]) if pd.notna(row.iloc[4]) else ""
-                if e_value and ' ' in e_value:
-                    parts = e_value.split(' ', 1)  # 첫 번째 띄어쓰기로만 분할
-                    sheet2_row['H열(브랜드)'] = parts[0].strip()
-                    # 상품명에 키워드 제거 적용
-                    raw_product_name = parts[1].strip()
-                    cleaned_product_name = self.normalize_product_name(raw_product_name)
-                    # 정규화된 결과가 너무 짧으면 원본 사용 (단, 키워드 괄호는 제거)
-                    if len(cleaned_product_name) < 2:
-                        # 원본에서 괄호만 제거
-                        cleaned_product_name = raw_product_name
-                        for keyword in self.keyword_list:
-                            if keyword:
-                                pattern = r'\(' + re.escape(keyword) + r'\)'
-                                cleaned_product_name = re.sub(pattern, '', cleaned_product_name, flags=re.IGNORECASE)
-                        cleaned_product_name = re.sub(r'\s+', ' ', cleaned_product_name).strip()
-                    
-                    sheet2_row['I열(상품명)'] = cleaned_product_name
+                e_value = e_value.strip()  # 앞뒤 공백 제거
+                
+                if e_value:
+                    # 괄호를 이용한 브랜드 추출 시도 (예: 클라레오(기린) 상품명)
+                    bracket_match = re.match(r'^([^)]+\)[^)]*?)\s+(.+)$', e_value)
+                    if bracket_match:
+                        # 괄호가 포함된 브랜드명과 상품명 분리
+                        brand_part = bracket_match.group(1).strip()
+                        product_part = bracket_match.group(2).strip()
+                        sheet2_row['H열(브랜드)'] = brand_part
+                        
+                        # 상품명에 키워드 제거 적용
+                        cleaned_product_name = self.normalize_product_name(product_part)
+                        if len(cleaned_product_name) < 2:
+                            # 원본에서 괄호만 제거
+                            cleaned_product_name = product_part
+                            for keyword in self.keyword_list:
+                                if keyword:
+                                    pattern = r'\(' + re.escape(keyword) + r'\)'
+                                    cleaned_product_name = re.sub(pattern, '', cleaned_product_name, flags=re.IGNORECASE)
+                            cleaned_product_name = re.sub(r'\s+', ' ', cleaned_product_name).strip()
+                        
+                        sheet2_row['I열(상품명)'] = cleaned_product_name
+                        
+                    elif ' ' in e_value:
+                        # 일반적인 띄어쓰기 분할 (공백 제거 후)
+                        parts = e_value.split(' ', 1)
+                        if parts[0].strip():  # 첫 번째 부분이 비어있지 않으면
+                            sheet2_row['H열(브랜드)'] = parts[0].strip()
+                            # 상품명에 키워드 제거 적용
+                            raw_product_name = parts[1].strip() if len(parts) > 1 else ""
+                            if raw_product_name:
+                                cleaned_product_name = self.normalize_product_name(raw_product_name)
+                                if len(cleaned_product_name) < 2:
+                                    # 원본에서 괄호만 제거
+                                    cleaned_product_name = raw_product_name
+                                    for keyword in self.keyword_list:
+                                        if keyword:
+                                            pattern = r'\(' + re.escape(keyword) + r'\)'
+                                            cleaned_product_name = re.sub(pattern, '', cleaned_product_name, flags=re.IGNORECASE)
+                                    cleaned_product_name = re.sub(r'\s+', ' ', cleaned_product_name).strip()
+                                
+                                sheet2_row['I열(상품명)'] = cleaned_product_name
+                            else:
+                                sheet2_row['I열(상품명)'] = ""
+                        else:
+                            # 첫 번째 부분이 비어있으면 전체를 상품명으로 처리
+                            sheet2_row['H열(브랜드)'] = ""
+                            cleaned_product_name = self.normalize_product_name(e_value)
+                            if len(cleaned_product_name) < 2:
+                                cleaned_product_name = e_value
+                            sheet2_row['I열(상품명)'] = cleaned_product_name
+                    else:
+                        # 띄어쓰기가 없으면 전체를 브랜드로 처리
+                        sheet2_row['H열(브랜드)'] = e_value
+                        sheet2_row['I열(상품명)'] = ""
                 else:
-                    sheet2_row['H열(브랜드)'] = e_value.strip()
+                    sheet2_row['H열(브랜드)'] = ""
                     sheet2_row['I열(상품명)'] = ""
             
             # 업로드 F열 (옵션) → 색상/사이즈 추출
