@@ -141,13 +141,35 @@ def show_matching_page(matching_system, file_processor):
     with col2:
         st.markdown("### 📊 시스템 현황")
         
-        # 브랜드 데이터 정보
-        if hasattr(matching_system, 'brand_data') and len(matching_system.brand_data) > 0:
-            st.metric("🏷️ 브랜드 상품", f"{len(matching_system.brand_data):,}개")
+        # 브랜드 데이터 정보와 새로고침 버튼
+        brand_col1, brand_col2 = st.columns([2, 1])
+        
+        with brand_col1:
+            if hasattr(matching_system, 'brand_data') and len(matching_system.brand_data) > 0:
+                st.metric("🏷️ 브랜드 상품", f"{len(matching_system.brand_data):,}개")
+            else:
+                st.metric("🏷️ 브랜드 상품", "로드 실패")
+        
+        with brand_col2:
+            if st.button("🔄", help="브랜드 데이터 새로고침", use_container_width=True):
+                with st.spinner("업데이트 중..."):
+                    try:
+                        # 캐시 클리어 및 데이터 새로고침
+                        st.cache_resource.clear()
+                        matching_system.load_brand_data()
+                        st.success("✅ 업데이트 완료!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ 업데이트 실패: {str(e)}")
         
         # 키워드 정보
         if hasattr(matching_system, 'keyword_list') and matching_system.keyword_list:
             st.metric("🔍 제외 키워드", f"{len(matching_system.keyword_list)}개")
+        
+        # 마지막 업데이트 시간 표시
+        from datetime import datetime
+        update_time = datetime.now().strftime("%H:%M:%S")
+        st.caption(f"마지막 확인: {update_time}")
         
         # 지원 형식 안내
         st.markdown("---")
@@ -167,6 +189,19 @@ def show_matching_page(matching_system, file_processor):
         3. 사이즈/컬러 매칭
         4. 최적 점수 기반 선택
         """)
+        
+        # 빠른 액세스 버튼들
+        st.markdown("---")
+        st.markdown("#### ⚡ 빠른 액세스")
+        
+        quick_col1, quick_col2 = st.columns(2)
+        with quick_col1:
+            if st.button("📊 시스템 정보", use_container_width=True):
+                st.info("💡 사이드바에서 '시스템 정보' 메뉴를 선택해주세요!")
+        
+        with quick_col2:
+            if st.button("🔧 키워드 관리", use_container_width=True):
+                st.info("💡 사이드바에서 '키워드 관리' 메뉴를 선택해주세요!")
 
 def process_matching(uploaded_files, matching_system, file_processor):
     """매칭 처리 실행"""
@@ -372,12 +407,45 @@ def show_info_page(matching_system):
     """시스템 정보 페이지"""
     st.header("ℹ️ 시스템 정보")
     
+    # 브랜드 데이터 새로고침 버튼 (상단에 배치)
+    col_refresh1, col_refresh2, col_refresh3 = st.columns([1, 2, 1])
+    with col_refresh2:
+        if st.button("🔄 브랜드 데이터 새로고침", type="primary", use_container_width=True):
+            with st.spinner("브랜드 데이터를 업데이트하는 중..."):
+                try:
+                    # 캐시 클리어
+                    st.cache_resource.clear()
+                    
+                    # 브랜드 데이터 다시 로드
+                    matching_system.load_brand_data()
+                    
+                    st.success("✅ 브랜드 데이터가 성공적으로 업데이트되었습니다!")
+                    st.info(f"📊 현재 브랜드 상품 수: {len(matching_system.brand_data):,}개")
+                    
+                    # 잠시 후 페이지 새로고침
+                    import time
+                    time.sleep(1)
+                    st.rerun()
+                    
+                except Exception as e:
+                    st.error(f"❌ 브랜드 데이터 업데이트 중 오류 발생: {str(e)}")
+    
+    st.markdown("---")
+    
     col1, col2 = st.columns(2)
     
     with col1:
         st.subheader("📊 브랜드 데이터")
         if hasattr(matching_system, 'brand_data') and len(matching_system.brand_data) > 0:
-            st.metric("브랜드 상품 수", len(matching_system.brand_data))
+            # 브랜드 상품 수와 마지막 업데이트 시간 표시
+            from datetime import datetime
+            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            col_metric1, col_metric2 = st.columns(2)
+            with col_metric1:
+                st.metric("브랜드 상품 수", f"{len(matching_system.brand_data):,}개")
+            with col_metric2:
+                st.metric("마지막 확인", current_time)
             
             # 브랜드별 통계
             if len(matching_system.brand_data) > 0:
@@ -390,19 +458,80 @@ def show_info_page(matching_system):
                 brand_df = pd.DataFrame(list(brands.items()), columns=['브랜드', '상품수'])
                 brand_df = brand_df.sort_values('상품수', ascending=False).head(10)
                 st.dataframe(brand_df, use_container_width=True)
+                
+                # 총 브랜드 수 표시
+                st.info(f"📈 총 **{len(brands)}개** 브랜드의 상품을 관리 중입니다.")
         else:
             st.warning("브랜드 데이터를 로드할 수 없습니다.")
+            st.info("위의 '🔄 브랜드 데이터 새로고침' 버튼을 클릭해보세요.")
     
     with col2:
         st.subheader("🔧 키워드 정보")
         if hasattr(matching_system, 'keyword_list') and matching_system.keyword_list:
-            st.metric("제외 키워드 수", len(matching_system.keyword_list))
+            st.metric("제외 키워드 수", f"{len(matching_system.keyword_list)}개")
             
             # 키워드 목록 표시
             keywords_text = ", ".join(matching_system.keyword_list[:20])
             if len(matching_system.keyword_list) > 20:
                 keywords_text += f" ... (총 {len(matching_system.keyword_list)}개)"
             st.text_area("키워드 목록 (상위 20개)", keywords_text, height=100)
+            
+            # 키워드 관리 페이지로 이동 버튼
+            if st.button("⚙️ 키워드 관리하기", use_container_width=True):
+                st.info("💡 사이드바에서 '키워드 관리' 메뉴를 선택해주세요!")
+        else:
+            st.warning("키워드 데이터를 로드할 수 없습니다.")
+    
+    # 시스템 상태 정보
+    st.markdown("---")
+    st.subheader("🖥️ 시스템 상태")
+    
+    col_status1, col_status2, col_status3 = st.columns(3)
+    
+    with col_status1:
+        # Google Sheets 연결 상태
+        try:
+            if hasattr(matching_system, 'brand_data') and len(matching_system.brand_data) > 0:
+                st.success("🟢 Google Sheets 연결됨")
+            else:
+                st.error("🔴 Google Sheets 연결 실패")
+        except:
+            st.error("🔴 Google Sheets 연결 실패")
+    
+    with col_status2:
+        # 키워드 파일 상태
+        import os
+        if os.path.exists("keywords.xlsx"):
+            st.success("🟢 키워드 파일 존재")
+        else:
+            st.warning("🟡 키워드 파일 없음")
+    
+    with col_status3:
+        # 매칭 시스템 상태
+        if matching_system:
+            st.success("🟢 매칭 시스템 정상")
+        else:
+            st.error("🔴 매칭 시스템 오류")
+    
+    # 도움말 정보
+    st.markdown("---")
+    st.subheader("💡 도움말")
+    st.markdown("""
+    **브랜드 데이터 업데이트가 안 될 때:**
+    1. **🔄 브랜드 데이터 새로고침** 버튼을 클릭하세요
+    2. 구글 시트의 데이터가 변경된 경우 자동으로 반영됩니다
+    3. 인터넷 연결 상태를 확인해주세요
+    
+    **시스템 상태 확인:**
+    - **🟢 초록색**: 정상 작동
+    - **🟡 노란색**: 주의 필요
+    - **🔴 빨간색**: 오류 발생
+    
+    **문제 해결:**
+    - 데이터가 업데이트되지 않으면 새로고침 버튼을 시도해보세요
+    - 키워드 파일이 없으면 키워드 관리에서 저장해보세요
+    - 시스템 오류 시 페이지를 새로고침해보세요
+    """)
 
 def show_keyword_management_page(matching_system):
     """키워드 관리 페이지"""
@@ -552,11 +681,27 @@ def show_usage_page():
     - **자동 제거**: 상품명에서 키워드가 괄호와 함께 자동 제거
     - **실시간 적용**: 키워드 변경 시 즉시 매칭에 반영
     
+    ### 🔄 **데이터 업데이트**
+    
+    - **브랜드 데이터**: 구글 시트의 최신 데이터로 수동 업데이트 가능
+    - **자동 캐시**: 성능 향상을 위해 데이터 캐싱 (수동 새로고침 필요)
+    - **실시간 확인**: 시스템 현황에서 '🔄' 버튼으로 즉시 업데이트
+    - **업데이트 방법**:
+      1. 매칭 처리 페이지: 우측 상단 '🔄' 버튼
+      2. 시스템 정보 페이지: '🔄 브랜드 데이터 새로고침' 버튼
+    
+    ### 📊 **시스템 모니터링**
+    
+    - **연결 상태**: Google Sheets, 키워드 파일, 매칭 시스템 상태 확인
+    - **브랜드 통계**: 브랜드별 상품 수와 총 브랜드 수 표시
+    - **실시간 시간**: 마지막 확인 시간 표시
+    
     ### ⚠️ **주의사항**
     
     - 파일 크기는 50MB 이하로 제한됩니다
     - 처리 시간은 데이터 양에 따라 다릅니다
     - 결과 파일은 자동으로 다운로드됩니다
+    - **중요**: 구글 시트에 새 상품이 추가되면 반드시 새로고침 버튼을 클릭하세요!
     """)
 
 if __name__ == "__main__":
