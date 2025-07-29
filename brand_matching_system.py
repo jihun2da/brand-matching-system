@@ -242,7 +242,7 @@ class BrandMatchingSystem:
             self.brand_data = pd.DataFrame()
 
     def parse_options(self, option_text: str) -> tuple:
-        """옵션 텍스트에서 색상과 사이즈 추출 (기호 제거 개선)"""
+        """옵션 텍스트에서 색상과 사이즈 추출 (다양한 형식 지원)"""
         if not option_text or pd.isna(option_text) or str(option_text).strip().lower() == 'nan':
             return "", ""
         
@@ -250,19 +250,60 @@ class BrandMatchingSystem:
         color = ""
         size = ""
         
-        # 색상 추출 - '색상:' 다음부터 콤마, '사이즈:', 또는 문자열 끝까지
-        color_match = re.search(r'색상\s*:\s*([^,]+?)(?:\s*,|\s*사이즈:|$)', option_text, re.IGNORECASE)
+        # 패턴 1: 색상=값, 사이즈=값 (등호 사용)
+        color_match = re.search(r'색상\s*=\s*([^,/]+?)(?:\s*[,/]|\s*사이즈|$)', option_text, re.IGNORECASE)
         if color_match:
             color = color_match.group(1).strip()
-            # 색상에서 불필요한 기호와 공백 제거
+        
+        size_match = re.search(r'사이즈\s*[=:]\s*([^,/]+?)(?:\s*[,/]|$)', option_text, re.IGNORECASE)
+        if size_match:
+            size = size_match.group(1).strip()
+        
+        # 패턴 2: 색상: 값, 사이즈: 값 (콜론 사용) - 기존 로직
+        if not color:
+            color_match = re.search(r'색상\s*:\s*([^,/]+?)(?:\s*[,/]|\s*사이즈|$)', option_text, re.IGNORECASE)
+            if color_match:
+                color = color_match.group(1).strip()
+        
+        if not size:
+            size_match = re.search(r'사이즈\s*:\s*([^,/]+?)(?:\s*[,/]|$)', option_text, re.IGNORECASE)
+            if size_match:
+                size = size_match.group(1).strip()
+        
+        # 패턴 3: 색상/사이즈 (슬래시로 구분, 값만)
+        if not color and not size:
+            slash_match = re.search(r'^([^/]+)/([^/]+)$', option_text.strip())
+            if slash_match:
+                # 첫 번째가 색상, 두 번째가 사이즈로 가정
+                potential_color = slash_match.group(1).strip()
+                potential_size = slash_match.group(2).strip()
+                # 사이즈인지 확인 (숫자나 M, L, XL 등이 포함된 경우)
+                if re.search(r'[0-9]|[SMLX]', potential_size, re.IGNORECASE):
+                    color = potential_color
+                    size = potential_size
+        
+        # 패턴 4: 단어-숫자 형태 (예: 빨강-100, L-검정)
+        if not color and not size:
+            dash_match = re.search(r'^([^-]+)-([^-]+)$', option_text.strip())
+            if dash_match:
+                part1 = dash_match.group(1).strip()
+                part2 = dash_match.group(2).strip()
+                
+                # 첫 번째가 사이즈이고 두 번째가 색상인 경우 (L-검정)
+                if re.search(r'^[SMLX]$|^[0-9]+$', part1, re.IGNORECASE):
+                    size = part1
+                    color = part2
+                # 첫 번째가 색상이고 두 번째가 사이즈인 경우 (빨강-100)
+                elif re.search(r'[0-9]|[SMLX]', part2, re.IGNORECASE):
+                    color = part1
+                    size = part2
+        
+        # 색상과 사이즈에서 불필요한 기호 제거
+        if color:
             color = re.sub(r'\s*[/\\|]+\s*$', '', color)  # 끝의 /, \, | 기호와 공백 제거
             color = color.strip()
         
-        # 사이즈 추출 - '사이즈:' 다음부터 콤마 또는 문자열 끝까지
-        size_match = re.search(r'사이즈\s*:\s*(.+?)(?:\s*,|$)', option_text, re.IGNORECASE)
-        if size_match:
-            size = size_match.group(1).strip()
-            # 사이즈에서 불필요한 기호와 공백 제거
+        if size:
             size = re.sub(r'\s*[/\\|]+\s*$', '', size)  # 끝의 /, \, | 기호와 공백 제거
             size = size.strip()
         
