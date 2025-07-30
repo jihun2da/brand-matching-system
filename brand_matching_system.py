@@ -285,23 +285,27 @@ class BrandMatchingSystem:
         color = ""
         size = ""
         
-        # 패턴 1: 색상=값, 사이즈=값 (등호 사용)
-        color_match = re.search(r'색상\s*=\s*([^,/]+?)(?:\s*[,/]|\s*사이즈|$)', option_text, re.IGNORECASE)
+        # 패턴 1: 색상=값, 사이즈=값 (등호 사용) - 다양한 키워드 지원
+        # 색상 키워드: 색상, 컬러, Color
+        color_keywords = r'(?:색상|컬러|Color)'
+        color_match = re.search(color_keywords + r'\s*=\s*([^,/]+?)(?:\s*[,/]|\s*(?:사이즈|Size)|$)', option_text, re.IGNORECASE)
         if color_match:
             color = color_match.group(1).strip()
         
-        size_match = re.search(r'사이즈\s*[=:]\s*([^,/]+?)(?:\s*[,/]|$)', option_text, re.IGNORECASE)
+        # 사이즈 키워드: 사이즈, Size
+        size_keywords = r'(?:사이즈|Size)'
+        size_match = re.search(size_keywords + r'\s*[=:]\s*([^,/]+?)(?:\s*[,/]|$)', option_text, re.IGNORECASE)
         if size_match:
             size = size_match.group(1).strip()
         
-        # 패턴 2: 색상: 값, 사이즈: 값 (콜론 사용) - 기존 로직
+        # 패턴 2: 색상: 값, 사이즈: 값 (콜론 사용) - 다양한 키워드 지원
         if not color:
-            color_match = re.search(r'색상\s*:\s*([^,/]+?)(?:\s*[,/]|\s*사이즈|$)', option_text, re.IGNORECASE)
+            color_match = re.search(color_keywords + r'\s*:\s*([^,/]+?)(?:\s*[,/]|\s*(?:사이즈|Size)|$)', option_text, re.IGNORECASE)
             if color_match:
                 color = color_match.group(1).strip()
         
         if not size:
-            size_match = re.search(r'사이즈\s*:\s*([^,/]+?)(?:\s*[,/]|$)', option_text, re.IGNORECASE)
+            size_match = re.search(size_keywords + r'\s*:\s*([^,/]+?)(?:\s*[,/]|$)', option_text, re.IGNORECASE)
             if size_match:
                 size = size_match.group(1).strip()
         
