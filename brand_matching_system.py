@@ -96,14 +96,14 @@ class BrandMatchingSystem:
         return ""
 
     def normalize_product_name(self, product_name: str) -> str:
-        """상품명에서 키워드 제거 (괄호와 함께 완전 삭제)"""
+        """상품명에서 키워드 제거 (괄호와 함께 완전 삭제) - 유연한 매칭 지원"""
         if not product_name or pd.isna(product_name):
             return ""
         
         original = str(product_name).strip()
         normalized = original
         
-        # 키워드와 괄호를 함께 제거
+        # 기존 키워드 리스트로 제거
         for keyword in self.keyword_list:
             if keyword:
                 # 괄호와 함께 키워드 제거: (키워드) 형태
@@ -113,6 +113,41 @@ class BrandMatchingSystem:
                 # 단독 키워드도 제거 (기존 로직 유지)
                 pattern = r'\b' + re.escape(keyword) + r'\b'
                 normalized = re.sub(pattern, '', normalized, flags=re.IGNORECASE)
+        
+        # 추가 유연한 키워드 패턴들 (사용자가 자주 입력하는 형태)
+        flexible_patterns = [
+            # 사이즈 관련 패턴들
+            r'\([sS]~[xX][lL]\)',  # (s~xl), (S~XL)
+            r'\([sS]-[xX][lL]\)',  # (s-xl), (S-XL)
+            r'\([xX][sS]~[xX][lL]\)',  # (xs~xl), (XS~XL)
+            r'\([xX][sS]-[xX][lL]\)',  # (xs-xl), (XS-XL)
+            r'\([mM]~[jJ][xX][lL]\)',  # (m~jxl), (M~JXL)
+            r'\([mM]-[jJ][xX][lL]\)',  # (m-jxl), (M-JXL)
+            
+            # 숫자 사이즈 패턴들
+            r'\(1[0-9]~1[0-9]\)',  # (13~15), (10~19) 등
+            r'\(1[0-9]-1[0-9]\)',  # (13-15), (10-19) 등
+            r'\([0-9]+~[0-9]+\)',  # (5~11), (90~130) 등
+            r'\([0-9]+-[0-9]+\)',  # (5-11), (90-130) 등
+            
+            # JS 관련 패턴들
+            r'\([jJ][sS]~[jJ][xX][lL]\)',  # (js~jxl), (JS~JXL)
+            r'\([jJ][sS]-[jJ][xX][lL]\)',  # (js-jxl), (JS-JXL)
+            r'\([jJ][sS]~[jJ][lL]\)',  # (js~jl), (JS~JL)
+            r'\([jJ][sS]-[jJ][lL]\)',  # (js-jl), (JS-JL)
+            r'\([jJ][sS]~[jJ][mM]\)',  # (js~jm), (JS~JM)
+            r'\([jJ][sS]-[jJ][mM]\)',  # (js-jm), (JS-JM)
+            
+            # 기타 일반적인 패턴들
+            r'\(모델컷?\)',  # (모델), (모델컷)
+            r'\(추가컷?\)',  # (추가), (추가컷)
+            r'\(색상추가\)',  # (색상추가)
+            r'\([fF][rR][eE][eE]\)',  # (free), (FREE)
+        ]
+        
+        # 유연한 패턴들로 제거
+        for pattern in flexible_patterns:
+            normalized = re.sub(pattern, '', normalized, flags=re.IGNORECASE)
         
         # 연속된 공백과 쉼표 정리
         normalized = re.sub(r'\s*,\s*', ',', normalized)  # 쉼표 주변 공백 제거
