@@ -546,23 +546,65 @@ def show_keyword_management_page(matching_system):
     col1, col2 = st.columns([3, 1])
     
     with col1:
-        new_keyword = st.text_input("새 키워드 입력", placeholder="제거할 키워드를 입력하세요")
+        # text_area를 사용하여 특수문자 입력 문제 해결
+        new_keyword = st.text_area("새 키워드 입력", 
+                                  placeholder="제거할 키워드를 입력하세요 (예: *S~XL*, *13~15*)", 
+                                  height=50, 
+                                  key="keyword_input",
+                                  help="* 기호나 특수문자가 포함된 키워드도 입력 가능합니다")
+        
+        # 실시간 입력 내용 확인 (디버깅용)
+        if new_keyword:
+            cleaned_preview = new_keyword.replace('\n', '').replace('\r', '').strip()
+            if cleaned_preview:
+                st.caption(f"입력된 내용: `{cleaned_preview}` (길이: {len(cleaned_preview)})")
+                if '*' in cleaned_preview:
+                    st.caption("✅ * 기호가 포함되어 있습니다")
+                else:
+                    st.caption("⚠️ * 기호가 없습니다")
     
     with col2:
         if st.button("➕ 추가", type="primary", use_container_width=True):
-            if new_keyword.strip():
-                if matching_system.add_keyword(new_keyword.strip()):
-                    st.success(f"키워드 '{new_keyword.strip()}'가 추가되었습니다!")
-                    st.rerun()
+            # 줄바꿈 제거 및 공백 정리
+            cleaned_keyword = new_keyword.replace('\n', '').replace('\r', '').strip()
+            
+            # 상세 디버깅 정보
+            st.info(f"🔍 디버깅 정보:\n- 원본 입력: `{repr(new_keyword)}`\n- 정리된 키워드: `{repr(cleaned_keyword)}`\n- * 포함 여부: {'예' if '*' in cleaned_keyword else '아니오'}")
+            
+            if cleaned_keyword:
+                # 키워드 추가 전 중복 확인
+                if cleaned_keyword in matching_system.keyword_list:
+                    st.warning(f"키워드 '{cleaned_keyword}'는 이미 존재합니다.")
                 else:
-                    st.warning("키워드 추가에 실패했거나 이미 존재하는 키워드입니다.")
+                    if matching_system.add_keyword(cleaned_keyword):
+                        st.success(f"키워드 '{cleaned_keyword}'가 추가되었습니다!")
+                        
+                        # 디버깅용: 추가된 키워드 확인
+                        if cleaned_keyword.startswith('*') and cleaned_keyword.endswith('*'):
+                            st.info(f"✨ 특수 패턴 키워드가 추가되었습니다: {cleaned_keyword}")
+                        
+                        # 키워드 파일에서 다시 로드해서 확인
+                        matching_system.load_keywords()
+                        if cleaned_keyword in matching_system.keyword_list:
+                            st.success("✅ 키워드가 파일에 정상적으로 저장되었습니다!")
+                        else:
+                            st.error("❌ 키워드 저장에 문제가 있을 수 있습니다.")
+                        
+                        st.rerun()
+                    else:
+                        st.error("키워드 추가에 실패했습니다.")
             else:
                 st.warning("키워드를 입력해주세요.")
     
     # 현재 키워드 목록
     st.markdown("---")
     st.markdown("### 📋 현재 키워드 목록")
-    st.markdown(f"**총 {len(matching_system.keyword_list)}개의 키워드**")
+    
+    # 키워드 분류
+    star_keywords = [kw for kw in matching_system.keyword_list if kw.startswith('*') and kw.endswith('*')]
+    regular_keywords = [kw for kw in matching_system.keyword_list if not (kw.startswith('*') and kw.endswith('*'))]
+    
+    st.markdown(f"**총 {len(matching_system.keyword_list)}개의 키워드** (⭐ 특수패턴: {len(star_keywords)}개, 일반: {len(regular_keywords)}개)")
     
     if matching_system.keyword_list:
         # 검색 기능
@@ -596,9 +638,17 @@ def show_keyword_management_page(matching_system):
             for i, keyword in enumerate(page_keywords):
                 col_idx = i % 4
                 with cols[col_idx]:
+                    # * 키워드인지 확인하여 아이콘 구분
+                    if keyword.startswith('*') and keyword.endswith('*'):
+                        button_text = f"⭐❌ {keyword}"
+                        button_help = f"특수패턴 키워드 '{keyword}' 삭제"
+                    else:
+                        button_text = f"❌ {keyword}"
+                        button_help = f"일반 키워드 '{keyword}' 삭제"
+                    
                     # 각 키워드를 버튼으로 표시하고 클릭하면 삭제
-                    if st.button(f"❌ {keyword}", key=f"delete_{keyword}_{i}", 
-                                help=f"'{keyword}' 키워드 삭제", use_container_width=True):
+                    if st.button(button_text, key=f"delete_{keyword}_{i}", 
+                                help=button_help, use_container_width=True):
                         if matching_system.remove_keyword(keyword):
                             st.success(f"키워드 '{keyword}'가 삭제되었습니다!")
                             st.rerun()
@@ -648,6 +698,12 @@ def show_keyword_management_page(matching_system):
     - 상품명에서 불필요한 텍스트를 제거하여 매칭 정확도 향상
     - 괄호와 함께 `(키워드)` 형태로 제거됨
     - 예: `튜브탑(JS-JL)` → `튜브탑` (JS-JL이 키워드인 경우)
+    
+    **특수 패턴 키워드 (⭐ 추천):**
+    - `*S~XL*`: 사이즈 범위 패턴 (S~XL, S-XL 모두 매칭)
+    - `*13~15*`: 숫자 범위 패턴 (13~15, 13-15 모두 매칭)
+    - `*FREE*`: 고정 텍스트 패턴
+    - * 기호로 감싸면 틸드(~)와 하이픈(-) 변형까지 자동 처리됩니다
     """)
 
 def show_usage_page():

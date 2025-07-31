@@ -103,15 +103,48 @@ class BrandMatchingSystem:
         original = str(product_name).strip()
         normalized = original
         
-        # 기존 키워드 리스트로 제거
+        # *** 1단계: * 기호로 감싸진 패턴 우선 처리 ***
+        # 단일 문자 키워드(~, -, * 등)가 방해하기 전에 먼저 처리
+        star_keywords_to_process = []
         for keyword in self.keyword_list:
-            if keyword:
+            if keyword.startswith('*') and keyword.endswith('*') and len(keyword) > 2:
+                star_keywords_to_process.append(keyword)
+        
+        # * 키워드들을 길이순으로 정렬 (긴 것부터 처리하여 더 구체적인 패턴 우선 적용)
+        star_keywords_to_process.sort(key=len, reverse=True)
+        
+        for keyword in star_keywords_to_process:
+            # 여러 변형을 직접 처리 (정규식 대신 단순 교체)
+            variations = [
+                keyword,  # 원본 *13~15*
+                keyword.replace('~', '-'),  # *13-15*
+                keyword.replace('-', '~'),  # *13~15* (하이픈이 있었다면 틸드로)
+            ]
+            
+            for variation in variations:
+                if variation in normalized:
+                    normalized = normalized.replace(variation, '')
+                    break  # 하나라도 매칭되면 다음 키워드로
+        
+        # *** 2단계: 일반 키워드 제거 (* 키워드 제외) ***
+        for keyword in self.keyword_list:
+            if keyword and not (keyword.startswith('*') and keyword.endswith('*')):
                 # 괄호와 함께 키워드 제거: (키워드) 형태
                 pattern = r'\(' + re.escape(keyword) + r'\)'
                 normalized = re.sub(pattern, '', normalized, flags=re.IGNORECASE)
                 
-                # 단독 키워드도 제거 (기존 로직 유지)
-                pattern = r'\b' + re.escape(keyword) + r'\b'
+                # 단독 키워드 제거 (특수문자 포함 여부에 따라 다르게 처리)
+                escaped_keyword = re.escape(keyword)
+                
+                # 특수문자가 포함된 키워드인지 확인
+                # 알파벳, 숫자, 한글, 공백만 포함된 경우에만 word boundary 사용
+                if re.match(r'^[a-zA-Z0-9가-힣\s]+$', keyword):
+                    # 일반 키워드: word boundary 사용
+                    pattern = r'\b' + escaped_keyword + r'\b'
+                else:
+                    # 특수문자 포함 키워드: word boundary 없이 직접 매칭
+                    pattern = escaped_keyword
+                
                 normalized = re.sub(pattern, '', normalized, flags=re.IGNORECASE)
         
         # 추가 유연한 키워드 패턴들 (사용자가 자주 입력하는 형태)
